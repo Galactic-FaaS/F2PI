@@ -1,0 +1,21 @@
+{
+  "name": "example-package",
+  "version": "1.0.0",
+  "description": "A basic example package demonstrating F2PI structure and conventions",
+  "category": "Utilities & Tools",
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository_url": "https://github.com/yourusername/example-package",
+  "documentation_url": "https://yourusername.github.io/example-package",
+  "keywords": ["example", "template", "utilities"],
+  "dependencies": [
+    {
+      "name": "stdlib",
+      "version": ">=1.0.0"
+    }
+  ],
+  "fortran_version": ">=2023",
+  "platforms": ["linux", "windows", "macos"],
+  "build_system": "make",
+  "test_framework": "funit"
+}

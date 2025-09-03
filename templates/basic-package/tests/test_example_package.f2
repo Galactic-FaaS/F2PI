@@ -1,0 +1,92 @@
+module test_example_package
+    use funit
+    use example_package
+    
+    implicit none
+    
+    contains
+    
+    @test
+    subroutine test_add_numbers()
+        integer :: result
+        
+        ! Test basic addition
+        result = add_numbers(2, 3)
+        @assertEqual(5, result)
+        
+        ! Test with negative numbers
+        result = add_numbers(-1, 1)
+        @assertEqual(0, result)
+        
+        ! Test with zero
+        result = add_numbers(0, 5)
+        @assertEqual(5, result)
+    end subroutine test_add_numbers
+    
+    @test
+    subroutine test_multiply_numbers()
+        integer :: result
+        
+        ! Test basic multiplication
+        result = multiply_numbers(3, 4)
+        @assertEqual(12, result)
+        
+        ! Test with zero
+        result = multiply_numbers(0, 5)
+        @assertEqual(0, result)
+        
+        ! Test with negative numbers
+        result = multiply_numbers(-2, 3)
+        @assertEqual(-6, result)
+    end subroutine test_multiply_numbers
+    
+    @test
+    subroutine test_greet_user()
+        character(len=:), allocatable :: greeting
+        
+        ! Test with normal name
+        greeting = greet_user("Alice")
+        @assertTrue(len_trim(greeting) > 0)
+        @assertTrue(index(greeting, "Alice") > 0)
+        
+        ! Test with empty name
+        greeting = greet_user("")
+        @assertTrue(len_trim(greeting) > 0)
+        
+        ! Test with long name
+        greeting = greet_user("VeryLongNameThatExceedsNormalLength")
+        @assertTrue(len_trim(greeting) > 0)
+    end subroutine test_greet_user
+    
+    @test
+    subroutine test_is_even()
+        ! Test even numbers
+        @assertTrue(is_even(2))
+        @assertTrue(is_even(4))
+        @assertTrue(is_even(0))
+        @assertTrue(is_even(-2))
+        
+        ! Test odd numbers
+        @assertFalse(is_even(1))
+        @assertFalse(is_even(3))
+        @assertFalse(is_even(-1))
+    end subroutine test_is_even
+    
+    @test
+    subroutine test_factorial()
+        ! Test basic factorials
+        @assertEqual(1, factorial(0))
+        @assertEqual(1, factorial(1))
+        @assertEqual(2, factorial(2))
+        @assertEqual(6, factorial(3))
+        @assertEqual(24, factorial(4))
+        @assertEqual(120, factorial(5))
+    end subroutine test_factorial
+    
+    @test
+    subroutine test_factorial_negative()
+        ! This test should raise an error
+        @assertRaises(factorial(-1))
+    end subroutine test_factorial_negative
+
+end module test_example_package

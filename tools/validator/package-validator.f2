@@ -1,0 +1,322 @@
+module package_validator
+    use stdlib_strings
+    use stdlib_io
+    use stdlib_filesystem
+    use json_module
+    
+    implicit none
+    
+    type :: validation_result
+        logical :: is_valid
+        character(len=:), allocatable :: error_message
+        character(len=:), allocatable :: warnings(:)
+        integer :: warning_count
+    end type validation_result
+    
+    type :: package_metadata
+        character(len=:), allocatable :: name
+        character(len=:), allocatable :: version
+        character(len=:), allocatable :: description
+        character(len=:), allocatable :: category
+        character(len=:), allocatable :: author
+        character(len=:), allocatable :: license
+        character(len=:), allocatable :: repository_url
+        character(len=:), allocatable :: documentation_url
+        character(len=:), allocatable :: dependencies(:)
+        integer :: dependency_count
+    end type package_metadata
+    
+    contains
+    
+    function validate_package(package_path) result(result)
+        character(len=*), intent(in) :: package_path
+        type(validation_result) :: result
+        
+        result%is_valid = .true.
+        result%warning_count = 0
+        
+        ! Check package structure
+        if (.not. validate_package_structure(package_path, result)) then
+            return
+        end if
+        
+        ! Validate metadata
+        if (.not. validate_metadata(package_path, result)) then
+            return
+        end if
+        
+        ! Check source files
+        if (.not. validate_source_files(package_path, result)) then
+            return
+        end if
+        
+        ! Validate tests
+        if (.not. validate_tests(package_path, result)) then
+            return
+        end if
+        
+        ! Check documentation
+        if (.not. validate_documentation(package_path, result)) then
+            return
+        end if
+        
+    end function validate_package
+    
+    function validate_package_structure(package_path, result) result(is_valid)
+        character(len=*), intent(in) :: package_path
+        type(validation_result), intent(inout) :: result
+        logical :: is_valid
+        
+        character(len=:), allocatable :: required_files(:)
+        integer :: i
+        logical :: file_exists
+        
+        is_valid = .true.
+        
+        ! Define required files and directories
+        required_files = [character(len=50) :: &
+            "f2pi.json", &
+            "README.md", &
+            "LICENSE", &
+            "src/", &
+            "tests/"]
+        
+        do i = 1, size(required_files)
+            file_exists = exists(join_path(package_path, required_files(i)))
+            if (.not. file_exists) then
+                result%is_valid = .false.
+                result%error_message = "Missing required file/directory: " // required_files(i)
+                is_valid = .false.
+                return
+            end if
+        end do
+        
+    end function validate_package_structure
+    
+    function validate_metadata(package_path, result) result(is_valid)
+        character(len=*), intent(in) :: package_path
+        type(validation_result), intent(inout) :: result
+        logical :: is_valid
+        
+        character(len=:), allocatable :: metadata_file
+        type(package_metadata) :: metadata
+        type(json_file) :: json
+        logical :: found
+        
+        is_valid = .true.
+        metadata_file = join_path(package_path, "f2pi.json")
+        
+        ! Parse JSON metadata
+        call json%initialize()
+        call json%load_file(metadata_file)
+        
+        ! Validate required fields
+        call json%get("name", metadata%name, found)
+        if (.not. found) then
+            result%is_valid = .false.
+            result%error_message = "Missing 'name' field in f2pi.json"
+            is_valid = .false.
+            return
+        end if
+        
+        call json%get("version", metadata%version, found)
+        if (.not. found) then
+            result%is_valid = .false.
+            result%error_message = "Missing 'version' field in f2pi.json"
+            is_valid = .false.
+            return
+        end if
+        
+        call json%get("description", metadata%description, found)
+        if (.not. found) then
+            result%is_valid = .false.
+            result%error_message = "Missing 'description' field in f2pi.json"
+            is_valid = .false.
+            return
+        end if
+        
+        call json%get("category", metadata%category, found)
+        if (.not. found) then
+            result%is_valid = .false.
+            result%error_message = "Missing 'category' field in f2pi.json"
+            is_valid = .false.
+            return
+        end if
+        
+        ! Validate version format (semantic versioning)
+        if (.not. is_valid_semantic_version(metadata%version)) then
+            result%is_valid = .false.
+            result%error_message = "Invalid version format. Use semantic versioning (e.g., 1.0.0)"
+            is_valid = .false.
+            return
+        end if
+        
+        call json%destroy()
+        
+    end function validate_metadata
+    
+    function validate_source_files(package_path, result) result(is_valid)
+        character(len=*), intent(in) :: package_path
+        type(validation_result), intent(inout) :: result
+        logical :: is_valid
+        
+        character(len=:), allocatable :: src_dir
+        character(len=:), allocatable :: files(:)
+        integer :: i, file_count
+        logical :: has_f2_files
+        
+        is_valid = .true.
+        src_dir = join_path(package_path, "src")
+        
+        ! Check if src directory contains .f2 files
+        call list_files(src_dir, files, file_count)
+        has_f2_files = .false.
+        
+        do i = 1, file_count
+            if (ends_with(files(i), ".f2")) then
+                has_f2_files = .true.
+                exit
+            end if
+        end do
+        
+        if (.not. has_f2_files) then
+            result%is_valid = .false.
+            result%error_message = "No Fortran² (.f2) source files found in src/ directory"
+            is_valid = .false.
+            return
+        end if
+        
+    end function validate_source_files
+    
+    function validate_tests(package_path, result) result(is_valid)
+        character(len=*), intent(in) :: package_path
+        type(validation_result), intent(inout) :: result
+        logical :: is_valid
+        
+        character(len=:), allocatable :: tests_dir
+        character(len=:), allocatable :: files(:)
+        integer :: i, file_count
+        logical :: has_test_files
+        
+        is_valid = .true.
+        tests_dir = join_path(package_path, "tests")
+        
+        ! Check if tests directory contains test files
+        call list_files(tests_dir, files, file_count)
+        has_test_files = .false.
+        
+        do i = 1, file_count
+            if (ends_with(files(i), "_test.f2") .or. ends_with(files(i), ".f2")) then
+                has_test_files = .true.
+                exit
+            end if
+        end do
+        
+        if (.not. has_test_files) then
+            call add_warning(result, "No test files found in tests/ directory")
+        end if
+        
+    end function validate_tests
+    
+    function validate_documentation(package_path, result) result(is_valid)
+        character(len=*), intent(in) :: package_path
+        type(validation_result), intent(inout) :: result
+        logical :: is_valid
+        
+        character(len=:), allocatable :: readme_file
+        character(len=:), allocatable :: content
+        integer :: file_size
+        
+        is_valid = .true.
+        readme_file = join_path(package_path, "README.md")
+        
+        ! Check README.md size (should be substantial)
+        call get_file_size(readme_file, file_size)
+        if (file_size < 500) then
+            call add_warning(result, "README.md is quite short. Consider adding more documentation.")
+        end if
+        
+    end function validate_documentation
+    
+    function is_valid_semantic_version(version) result(is_valid)
+        character(len=*), intent(in) :: version
+        logical :: is_valid
+        
+        integer :: major, minor, patch
+        integer :: iostat
+        
+        ! Simple semantic version validation (major.minor.patch)
+        read(version, '(I0,1X,I0,1X,I0)', iostat=iostat) major, minor, patch
+        
+        is_valid = (iostat == 0 .and. major >= 0 .and. minor >= 0 .and. patch >= 0)
+        
+    end function is_valid_semantic_version
+    
+    subroutine add_warning(result, warning_message)
+        type(validation_result), intent(inout) :: result
+        character(len=*), intent(in) :: warning_message
+        
+        result%warning_count = result%warning_count + 1
+        
+        ! Reallocate warnings array if needed
+        if (result%warning_count == 1) then
+            allocate(result%warnings(1))
+        else
+            result%warnings = [result%warnings, warning_message]
+        end if
+        
+        result%warnings(result%warning_count) = warning_message
+        
+    end subroutine add_warning
+    
+    subroutine list_files(directory, files, file_count)
+        character(len=*), intent(in) :: directory
+        character(len=:), allocatable, intent(out) :: files(:)
+        integer, intent(out) :: file_count
+        
+        ! Placeholder for file listing functionality
+        ! This would use stdlib_filesystem or system calls
+        file_count = 0
+        allocate(files(0))
+        
+    end subroutine list_files
+    
+    subroutine get_file_size(filename, size)
+        character(len=*), intent(in) :: filename
+        integer, intent(out) :: size
+        
+        ! Placeholder for file size functionality
+        size = 0
+        
+    end subroutine get_file_size
+    
+    function join_path(path1, path2) result(joined_path)
+        character(len=*), intent(in) :: path1, path2
+        character(len=:), allocatable :: joined_path
+        
+        if (ends_with(path1, "/")) then
+            joined_path = path1 // path2
+        else
+            joined_path = path1 // "/" // path2
+        end if
+        
+    end function join_path
+    
+    function ends_with(str, suffix) result(result)
+        character(len=*), intent(in) :: str, suffix
+        logical :: result
+        
+        integer :: str_len, suffix_len
+        
+        str_len = len_trim(str)
+        suffix_len = len_trim(suffix)
+        
+        if (str_len < suffix_len) then
+            result = .false.
+        else
+            result = (str(str_len-suffix_len+1:str_len) == suffix)
+        end if
+        
+    end function ends_with
+
+end module package_validator

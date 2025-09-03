@@ -1,0 +1,54 @@
+{
+  "categories": {
+    "Mathematics & Statistics": {
+      "description": "Mathematical functions, statistical analysis, numerical methods",
+      "packages": [],
+      "keywords": ["math", "statistics", "numerical", "analysis", "algebra"]
+    },
+    "Data Processing": {
+      "description": "Data manipulation, parsing, formatting, and transformation",
+      "packages": [],
+      "keywords": ["data", "parsing", "formatting", "csv", "json", "xml"]
+    },
+    "Scientific Computing": {
+      "description": "Scientific simulations, physics, chemistry, engineering",
+      "packages": [],
+      "keywords": ["scientific", "simulation", "physics", "chemistry", "engineering"]
+    },
+    "Cryptography & Security": {
+      "description": "Encryption, hashing, security protocols, authentication",
+      "packages": [],
+      "keywords": ["crypto", "security", "encryption", "hash", "auth"]
+    },
+    "Database & Storage": {
+      "description": "Database connectivity, data persistence, file I/O",
+      "packages": [],
+      "keywords": ["database", "storage", "sql", "file", "persistence"]
+    },
+    "Networking & Communication": {
+      "description": "Network protocols, HTTP clients, communication libraries",
+      "packages": [],
+      "keywords": ["network", "http", "tcp", "udp", "communication"]
+    },
+    "Graphics & Visualization": {
+      "description": "Graphics rendering, plotting, visualization tools",
+      "packages": [],
+      "keywords": ["graphics", "plotting", "visualization", "rendering", "charts"]
+    },
+    "Utilities & Tools": {
+      "description": "General utilities, helper functions, development tools",
+      "packages": [],
+      "keywords": ["utilities", "tools", "helpers", "development", "misc"]
+    },
+    "Testing & Development": {
+      "description": "Testing frameworks, development tools, debugging utilities",
+      "packages": [],
+      "keywords": ["testing", "development", "debugging", "framework", "tools"]
+    },
+    "Other": {
+      "description": "Packages that don't fit into other categories",
+      "packages": [],
+      "keywords": ["misc", "other", "uncategorized"]
+    }
+  }
+}

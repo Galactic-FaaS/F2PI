@@ -1,0 +1,71 @@
+name: Registry Update
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/approved/**'
+  release:
+    types: [ published ]
+
+jobs:
+  update-registry:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install F2PI tools
+      run: |
+        npm install -g @f2pi/cli
+    
+    - name: Update package index
+      run: |
+        # Generate updated package index
+        f2pi generate-index packages/approved/ > registry/index.json
+        
+        # Update package statistics
+        f2pi generate-stats packages/approved/ > registry/stats/package-stats.json
+        
+        # Update category listings
+        f2pi generate-categories packages/approved/ > registry/categories/index.json
+    
+    - name: Validate registry data
+      run: |
+        # Validate JSON format
+        python3 -m json.tool registry/index.json > /dev/null
+        python3 -m json.tool registry/stats/package-stats.json > /dev/null
+        python3 -m json.tool registry/categories/index.json > /dev/null
+        
+        echo "Registry data validation passed"
+    
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if git diff --quiet; then
+          echo "No changes to commit"
+        else
+          git add registry/
+          git commit -m "Update package registry [skip ci]"
+          git push
+        fi
+    
+    - name: Notify package authors
+      if: github.event_name == 'release'
+      run: |
+        # Extract package information from release
+        package_name="${{ github.event.release.name }}"
+        package_version="${{ github.event.release.tag_name }}"
+        
+        # Send notification (placeholder for actual notification system)
+        echo "Package $package_name v$package_version has been published to F2PI registry"

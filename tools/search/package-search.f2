@@ -1,0 +1,389 @@
+module package_search
+    use stdlib_strings
+    use stdlib_io
+    use stdlib_filesystem
+    use json_module
+    
+    implicit none
+    
+    type :: search_result
+        character(len=:), allocatable :: name
+        character(len=:), allocatable :: version
+        character(len=:), allocatable :: description
+        character(len=:), allocatable :: category
+        character(len=:), allocatable :: author
+        character(len=:), allocatable :: license
+        character(len=:), allocatable :: repository_url
+        character(len=:), allocatable :: documentation_url
+        real :: relevance_score
+    end type search_result
+    
+    type :: search_options
+        character(len=:), allocatable :: query
+        character(len=:), allocatable :: category
+        character(len=:), allocatable :: author
+        character(len=:), allocatable :: license
+        logical :: include_dependencies
+        integer :: max_results
+        logical :: sort_by_relevance
+    end type search_options
+    
+    contains
+    
+    function search_packages(registry_path, options) result(results)
+        character(len=*), intent(in) :: registry_path
+        type(search_options), intent(in) :: options
+        type(search_result), allocatable :: results(:)
+        
+        character(len=:), allocatable :: index_file
+        type(json_file) :: json
+        type(json_value), pointer :: packages_obj
+        integer :: package_count, i
+        type(search_result), allocatable :: all_packages(:)
+        type(search_result), allocatable :: filtered_packages(:)
+        
+        index_file = join_path(registry_path, "registry/index.json")
+        
+        call json%initialize()
+        call json%load_file(index_file)
+        
+        ! Get packages object
+        call json%get("packages", packages_obj)
+        if (.not. associated(packages_obj)) then
+            allocate(results(0))
+            return
+        end if
+        
+        ! Load all packages
+        call load_all_packages(packages_obj, all_packages)
+        
+        ! Filter packages based on search criteria
+        filtered_packages = filter_packages(all_packages, options)
+        
+        ! Sort results
+        if (options%sort_by_relevance) then
+            call sort_by_relevance(filtered_packages)
+        end if
+        
+        ! Limit results
+        if (size(filtered_packages) > options%max_results) then
+            allocate(results(options%max_results))
+            results = filtered_packages(1:options%max_results)
+        else
+            results = filtered_packages
+        end if
+        
+        call json%destroy()
+        
+    end function search_packages
+    
+    subroutine load_all_packages(packages_obj, packages)
+        type(json_value), pointer, intent(in) :: packages_obj
+        type(search_result), allocatable, intent(out) :: packages(:)
+        
+        integer :: package_count, i
+        character(len=:), allocatable :: package_name
+        type(json_value), pointer :: package_obj
+        
+        ! Count packages
+        package_count = json_count(packages_obj)
+        allocate(packages(package_count))
+        
+        ! Load each package
+        do i = 1, package_count
+            call json_get_name(packages_obj, i, package_name)
+            call json%get("packages." // package_name, package_obj)
+            
+            if (associated(package_obj)) then
+                call load_package_info(package_obj, packages(i))
+                packages(i)%name = package_name
+            end if
+        end do
+        
+    end subroutine load_all_packages
+    
+    subroutine load_package_info(package_obj, package)
+        type(json_value), pointer, intent(in) :: package_obj
+        type(search_result), intent(out) :: package
+        
+        logical :: found
+        
+        call json%get("version", package%version, found)
+        if (.not. found) package%version = ""
+        
+        call json%get("description", package%description, found)
+        if (.not. found) package%description = ""
+        
+        call json%get("category", package%category, found)
+        if (.not. found) package%category = ""
+        
+        call json%get("author", package%author, found)
+        if (.not. found) package%author = ""
+        
+        call json%get("license", package%license, found)
+        if (.not. found) package%license = ""
+        
+        call json%get("repository_url", package%repository_url, found)
+        if (.not. found) package%repository_url = ""
+        
+        call json%get("documentation_url", package%documentation_url, found)
+        if (.not. found) package%documentation_url = ""
+        
+        package%relevance_score = 0.0
+        
+    end subroutine load_package_info
+    
+    function filter_packages(packages, options) result(filtered)
+        type(search_result), intent(in) :: packages(:)
+        type(search_options), intent(in) :: options
+        type(search_result), allocatable :: filtered(:)
+        
+        integer :: i, filtered_count
+        logical :: matches_criteria
+        type(search_result), allocatable :: temp_filtered(:)
+        
+        allocate(temp_filtered(size(packages)))
+        filtered_count = 0
+        
+        do i = 1, size(packages)
+            matches_criteria = .true.
+            
+            ! Filter by query
+            if (len_trim(options%query) > 0) then
+                if (.not. matches_query(packages(i), options%query)) then
+                    matches_criteria = .false.
+                end if
+            end if
+            
+            ! Filter by category
+            if (len_trim(options%category) > 0) then
+                if (packages(i)%category /= options%category) then
+                    matches_criteria = .false.
+                end if
+            end if
+            
+            ! Filter by author
+            if (len_trim(options%author) > 0) then
+                if (.not. contains_ignore_case(packages(i)%author, options%author)) then
+                    matches_criteria = .false.
+                end if
+            end if
+            
+            ! Filter by license
+            if (len_trim(options%license) > 0) then
+                if (packages(i)%license /= options%license) then
+                    matches_criteria = .false.
+                end if
+            end if
+            
+            if (matches_criteria) then
+                filtered_count = filtered_count + 1
+                temp_filtered(filtered_count) = packages(i)
+                
+                ! Calculate relevance score
+                temp_filtered(filtered_count)%relevance_score = calculate_relevance(packages(i), options)
+            end if
+        end do
+        
+        ! Allocate final filtered array
+        allocate(filtered(filtered_count))
+        filtered = temp_filtered(1:filtered_count)
+        
+    end function filter_packages
+    
+    function matches_query(package, query) result(matches)
+        type(search_result), intent(in) :: package
+        character(len=*), intent(in) :: query
+        logical :: matches
+        
+        character(len=:), allocatable :: lower_query, lower_name, lower_description
+        
+        lower_query = to_lower(query)
+        lower_name = to_lower(package%name)
+        lower_description = to_lower(package%description)
+        
+        matches = (index(lower_name, lower_query) > 0) .or. &
+                  (index(lower_description, lower_query) > 0)
+        
+    end function matches_query
+    
+    function calculate_relevance(package, options) result(score)
+        type(search_result), intent(in) :: package
+        type(search_options), intent(in) :: options
+        real :: score
+        
+        score = 0.0
+        
+        ! Name match gets highest score
+        if (contains_ignore_case(package%name, options%query)) then
+            score = score + 1.0
+        end if
+        
+        ! Description match gets medium score
+        if (contains_ignore_case(package%description, options%query)) then
+            score = score + 0.5
+        end if
+        
+        ! Category match gets bonus
+        if (package%category == options%category) then
+            score = score + 0.3
+        end if
+        
+        ! Author match gets bonus
+        if (contains_ignore_case(package%author, options%author)) then
+            score = score + 0.2
+        end if
+        
+    end function calculate_relevance
+    
+    subroutine sort_by_relevance(packages)
+        type(search_result), intent(inout) :: packages(:)
+        
+        integer :: i, j, n
+        type(search_result) :: temp
+        
+        n = size(packages)
+        
+        ! Simple bubble sort by relevance score (descending)
+        do i = 1, n - 1
+            do j = 1, n - i
+                if (packages(j)%relevance_score < packages(j + 1)%relevance_score) then
+                    temp = packages(j)
+                    packages(j) = packages(j + 1)
+                    packages(j + 1) = temp
+                end if
+            end do
+        end do
+        
+    end subroutine sort_by_relevance
+    
+    function search_by_category(registry_path, category) result(results)
+        character(len=*), intent(in) :: registry_path
+        character(len=*), intent(in) :: category
+        type(search_result), allocatable :: results(:)
+        
+        type(search_options) :: options
+        
+        options%query = ""
+        options%category = category
+        options%author = ""
+        options%license = ""
+        options%include_dependencies = .false.
+        options%max_results = 100
+        options%sort_by_relevance = .true.
+        
+        results = search_packages(registry_path, options)
+        
+    end function search_by_category
+    
+    function search_by_author(registry_path, author) result(results)
+        character(len=*), intent(in) :: registry_path
+        character(len=*), intent(in) :: author
+        type(search_result), allocatable :: results(:)
+        
+        type(search_options) :: options
+        
+        options%query = ""
+        options%category = ""
+        options%author = author
+        options%license = ""
+        options%include_dependencies = .false.
+        options%max_results = 100
+        options%sort_by_relevance = .true.
+        
+        results = search_packages(registry_path, options)
+        
+    end function search_by_author
+    
+    function get_package_categories(registry_path) result(categories)
+        character(len=*), intent(in) :: registry_path
+        character(len=:), allocatable :: categories(:)
+        
+        character(len=:), allocatable :: categories_file
+        type(json_file) :: json
+        type(json_value), pointer :: categories_obj
+        integer :: category_count, i
+        character(len=:), allocatable :: category_name
+        
+        categories_file = join_path(registry_path, "registry/categories/index.json")
+        
+        call json%initialize()
+        call json%load_file(categories_file)
+        
+        call json%get("categories", categories_obj)
+        if (.not. associated(categories_obj)) then
+            allocate(categories(0))
+            return
+        end if
+        
+        category_count = json_count(categories_obj)
+        allocate(categories(category_count))
+        
+        do i = 1, category_count
+            call json_get_name(categories_obj, i, category_name)
+            categories(i) = category_name
+        end do
+        
+        call json%destroy()
+        
+    end function get_package_categories
+    
+    function contains_ignore_case(str, substr) result(contains)
+        character(len=*), intent(in) :: str, substr
+        logical :: contains
+        
+        character(len=:), allocatable :: lower_str, lower_substr
+        
+        lower_str = to_lower(str)
+        lower_substr = to_lower(substr)
+        
+        contains = (index(lower_str, lower_substr) > 0)
+        
+    end function contains_ignore_case
+    
+    function to_lower(str) result(lower_str)
+        character(len=*), intent(in) :: str
+        character(len=:), allocatable :: lower_str
+        
+        integer :: i, ascii_val
+        
+        lower_str = str
+        do i = 1, len_trim(str)
+            ascii_val = ichar(str(i:i))
+            if (ascii_val >= 65 .and. ascii_val <= 90) then  ! A-Z
+                lower_str(i:i) = char(ascii_val + 32)  ! Convert to lowercase
+            end if
+        end do
+        
+    end function to_lower
+    
+    function join_path(path1, path2) result(joined_path)
+        character(len=*), intent(in) :: path1, path2
+        character(len=:), allocatable :: joined_path
+        
+        if (ends_with(path1, "/")) then
+            joined_path = path1 // path2
+        else
+            joined_path = path1 // "/" // path2
+        end if
+        
+    end function join_path
+    
+    function ends_with(str, suffix) result(result)
+        character(len=*), intent(in) :: str, suffix
+        logical :: result
+        
+        integer :: str_len, suffix_len
+        
+        str_len = len_trim(str)
+        suffix_len = len_trim(suffix)
+        
+        if (str_len < suffix_len) then
+            result = .false.
+        else
+            result = (str(str_len-suffix_len+1:str_len) == suffix)
+        end if
+        
+    end function ends_with
+
+end module package_search

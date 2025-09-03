@@ -1,0 +1,30 @@
+{
+  "statistics": {
+    "lastUpdated": "2024-01-01T00:00:00Z",
+    "totalPackages": 0,
+    "packagesByCategory": {
+      "Mathematics & Statistics": 0,
+      "Data Processing": 0,
+      "Scientific Computing": 0,
+      "Cryptography & Security": 0,
+      "Database & Storage": 0,
+      "Networking & Communication": 0,
+      "Graphics & Visualization": 0,
+      "Utilities & Tools": 0,
+      "Testing & Development": 0,
+      "Other": 0
+    },
+    "recentActivity": {
+      "packagesAddedThisWeek": 0,
+      "packagesAddedThisMonth": 0,
+      "totalDownloads": 0,
+      "mostPopularPackages": []
+    },
+    "qualityMetrics": {
+      "averageTestCoverage": 0,
+      "packagesWithDocumentation": 0,
+      "packagesWithExamples": 0,
+      "packagesWithCI": 0
+    }
+  }
+}

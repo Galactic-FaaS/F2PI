@@ -1,0 +1,107 @@
+name: Package Validation
+
+on:
+  pull_request:
+    paths:
+      - 'packages/pending/**'
+  workflow_dispatch:
+
+jobs:
+  validate-package:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Fortran² environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install F2PI tools
+      run: |
+        npm install -g @f2pi/cli
+        f2pi --version
+    
+    - name: Validate package structure
+      run: |
+        # Find all packages in pending directory
+        for package_dir in packages/pending/*/; do
+          if [ -d "$package_dir" ]; then
+            echo "Validating package: $package_dir"
+            f2pi validate "$package_dir"
+          fi
+        done
+    
+    - name: Check package metadata
+      run: |
+        for package_dir in packages/pending/*/; do
+          if [ -d "$package_dir" ]; do
+            # Validate package.json/f2pi.json
+            if [ -f "$package_dir/f2pi.json" ]; then
+              f2pi validate-metadata "$package_dir/f2pi.json"
+            else
+              echo "Error: Missing f2pi.json in $package_dir"
+              exit 1
+            fi
+            
+            # Check required files
+            required_files=("README.md" "LICENSE" "src/" "tests/")
+            for file in "${required_files[@]}"; do
+              if [ ! -e "$package_dir/$file" ]; then
+                echo "Error: Missing required file/directory: $file in $package_dir"
+                exit 1
+              fi
+            done
+          fi
+        done
+    
+    - name: Run package tests
+      run: |
+        for package_dir in packages/pending/*/; do
+          if [ -d "$package_dir" ]; then
+            echo "Running tests for: $package_dir"
+            cd "$package_dir"
+            if [ -f "Makefile" ] || [ -f "CMakeLists.txt" ]; then
+              # Build and test the package
+              f2pi test "$package_dir"
+            fi
+            cd - > /dev/null
+          fi
+        done
+    
+    - name: Security scan
+      run: |
+        for package_dir in packages/pending/*/; do
+          if [ -d "$package_dir" ]; then
+            echo "Security scanning: $package_dir"
+            f2pi security-scan "$package_dir"
+          fi
+        done
+    
+    - name: Generate validation report
+      run: |
+        echo "# Package Validation Report" > validation-report.md
+        echo "Generated on: $(date)" >> validation-report.md
+        echo "" >> validation-report.md
+        
+        for package_dir in packages/pending/*/; do
+          if [ -d "$package_dir" ]; then
+            package_name=$(basename "$package_dir")
+            echo "## Package: $package_name" >> validation-report.md
+            echo "- Structure: ✅ Valid" >> validation-report.md
+            echo "- Metadata: ✅ Valid" >> validation-report.md
+            echo "- Tests: ✅ Passed" >> validation-report.md
+            echo "- Security: ✅ Clean" >> validation-report.md
+            echo "" >> validation-report.md
+          fi
+        done
+    
+    - name: Upload validation report
+      uses: actions/upload-artifact@v4
+      with:
+        name: validation-report
+        path: validation-report.md

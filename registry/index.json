@@ -1,0 +1,20 @@
+{
+  "registry": {
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-01T00:00:00Z",
+    "totalPackages": 0,
+    "categories": [
+      "Mathematics & Statistics",
+      "Data Processing", 
+      "Scientific Computing",
+      "Cryptography & Security",
+      "Database & Storage",
+      "Networking & Communication",
+      "Graphics & Visualization",
+      "Utilities & Tools",
+      "Testing & Development",
+      "Other"
+    ]
+  },
+  "packages": {}
+}

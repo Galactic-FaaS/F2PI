@@ -1,0 +1,76 @@
+module example_package
+    use stdlib_strings
+    use stdlib_io
+    
+    implicit none
+    
+    ! Public interface
+    public :: add_numbers, multiply_numbers, greet_user
+    
+    ! Private implementation
+    private
+    
+    contains
+    
+    !> Add two numbers together
+    !! @param a First number
+    !! @param b Second number
+    !! @return Sum of a and b
+    function add_numbers(a, b) result(result)
+        integer, intent(in) :: a, b
+        integer :: result
+        
+        result = a + b
+    end function add_numbers
+    
+    !> Multiply two numbers together
+    !! @param a First number
+    !! @param b Second number
+    !! @return Product of a and b
+    function multiply_numbers(a, b) result(result)
+        integer, intent(in) :: a, b
+        integer :: result
+        
+        result = a * b
+    end function multiply_numbers
+    
+    !> Generate a greeting message for a user
+    !! @param name User's name
+    !! @return Greeting message
+    function greet_user(name) result(greeting)
+        character(len=*), intent(in) :: name
+        character(len=:), allocatable :: greeting
+        
+        greeting = "Hello, " // trim(name) // "! Welcome to the example package."
+    end function greet_user
+    
+    !> Check if a number is even
+    !! @param n Number to check
+    !! @return True if number is even, false otherwise
+    function is_even(n) result(result)
+        integer, intent(in) :: n
+        logical :: result
+        
+        result = (mod(n, 2) == 0)
+    end function is_even
+    
+    !> Calculate factorial of a number
+    !! @param n Non-negative integer
+    !! @return Factorial of n
+    function factorial(n) result(result)
+        integer, intent(in) :: n
+        integer :: result
+        
+        integer :: i
+        
+        if (n < 0) then
+            error stop "Factorial is not defined for negative numbers"
+        end if
+        
+        result = 1
+        do i = 2, n
+            result = result * i
+        end do
+    end function factorial
+
+end module example_package

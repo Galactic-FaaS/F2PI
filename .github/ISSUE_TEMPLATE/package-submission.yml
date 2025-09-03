@@ -1,0 +1,134 @@
+name: Package Submission
+description: Submit a new package to the F2PI registry
+title: "[PACKAGE] "
+labels: ["package-submission", "pending-review"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for submitting a package to F2PI! Please fill out the following information to help us review your package.
+
+  - type: input
+    id: package-name
+    attributes:
+      label: Package Name
+      description: The name of your package (must be unique and follow naming conventions)
+      placeholder: "my-awesome-package"
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: Package Version
+      description: The version of your package (use semantic versioning)
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package-category
+    attributes:
+      label: Package Category
+      description: Select the most appropriate category for your package
+      options:
+        - "Mathematics & Statistics"
+        - "Data Processing"
+        - "Scientific Computing"
+        - "Cryptography & Security"
+        - "Database & Storage"
+        - "Networking & Communication"
+        - "Graphics & Visualization"
+        - "Utilities & Tools"
+        - "Testing & Development"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: package-description
+    attributes:
+      label: Package Description
+      description: A brief description of what your package does
+      placeholder: "Describe the functionality and purpose of your package..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: package-features
+    attributes:
+      label: Key Features
+      description: List the main features and capabilities of your package
+      placeholder: |
+        - Feature 1
+        - Feature 2
+        - Feature 3
+    validations:
+      required: true
+
+  - type: input
+    id: github-repo
+    attributes:
+      label: GitHub Repository URL
+      description: Link to your package's GitHub repository
+      placeholder: "https://github.com/username/package-name"
+    validations:
+      required: true
+
+  - type: input
+    id: documentation-url
+    attributes:
+      label: Documentation URL
+      description: Link to your package's documentation (optional)
+      placeholder: "https://username.github.io/package-name"
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List any dependencies your package requires
+      placeholder: |
+        - dependency1 >= 1.0.0
+        - dependency2 >= 2.1.0
+      value: "None"
+
+  - type: checkboxes
+    id: package-requirements
+    attributes:
+      label: Package Requirements Checklist
+      description: Please confirm that your package meets all requirements
+      options:
+        - label: Package follows F2PI naming conventions
+          required: true
+        - label: Package includes comprehensive documentation
+          required: true
+        - label: Package includes unit tests with good coverage
+          required: true
+        - label: Package includes a valid LICENSE file
+          required: true
+        - label: Package includes a README.md with usage examples
+          required: true
+        - label: Package uses semantic versioning
+          required: true
+        - label: Package compiles without warnings
+          required: true
+        - label: Package passes all automated tests
+          required: true
+
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Any additional information that might help with the review process
+      placeholder: "Any special considerations, known limitations, or additional context..."
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Terms and Conditions
+      description: By submitting this package, you agree to the F2PI terms and conditions
+      options:
+        - label: I agree to the F2PI terms and conditions and confirm that I have the right to submit this package
+          required: true

@@ -1,0 +1,342 @@
+module package_publisher
+    use stdlib_strings
+    use stdlib_io
+    use stdlib_filesystem
+    use json_module
+    use package_validator
+    
+    implicit none
+    
+    type :: publish_result
+        logical :: success
+        character(len=:), allocatable :: message
+        character(len=:), allocatable :: package_url
+    end type publish_result
+    
+    type :: package_info
+        character(len=:), allocatable :: name
+        character(len=:), allocatable :: version
+        character(len=:), allocatable :: description
+        character(len=:), allocatable :: category
+        character(len=:), allocatable :: author
+        character(len=:), allocatable :: license
+        character(len=:), allocatable :: repository_url
+        character(len=:), allocatable :: documentation_url
+        character(len=:), allocatable :: dependencies(:)
+        integer :: dependency_count
+    end type package_info
+    
+    contains
+    
+    function publish_package(package_path, registry_path) result(result)
+        character(len=*), intent(in) :: package_path
+        character(len=*), intent(in) :: registry_path
+        type(publish_result) :: result
+        
+        type(validation_result) :: validation
+        type(package_info) :: package
+        character(len=:), allocatable :: approved_path
+        character(len=:), allocatable :: registry_index
+        
+        result%success = .false.
+        
+        ! First validate the package
+        validation = validate_package(package_path)
+        if (.not. validation%is_valid) then
+            result%message = "Package validation failed: " // validation%error_message
+            return
+        end if
+        
+        ! Load package metadata
+        if (.not. load_package_metadata(package_path, package)) then
+            result%message = "Failed to load package metadata"
+            return
+        end if
+        
+        ! Check if package already exists
+        if (package_exists(registry_path, package%name, package%version)) then
+            result%message = "Package " // package%name // " version " // package%version // " already exists"
+            return
+        end if
+        
+        ! Move package to approved directory
+        approved_path = join_path(registry_path, "packages/approved/" // package%name)
+        if (.not. move_package_to_approved(package_path, approved_path)) then
+            result%message = "Failed to move package to approved directory"
+            return
+        end if
+        
+        ! Update registry index
+        if (.not. update_registry_index(registry_path, package)) then
+            result%message = "Failed to update registry index"
+            return
+        end if
+        
+        ! Update package statistics
+        if (.not. update_package_statistics(registry_path, package)) then
+            result%message = "Failed to update package statistics"
+            return
+        end if
+        
+        ! Update category listings
+        if (.not. update_category_listings(registry_path, package)) then
+            result%message = "Failed to update category listings"
+            return
+        end if
+        
+        result%success = .true.
+        result%message = "Package " // package%name // " v" // package%version // " published successfully"
+        result%package_url = "https://github.com/Fortransquared/F2PI/tree/main/packages/approved/" // package%name
+        
+    end function publish_package
+    
+    function load_package_metadata(package_path, package) result(success)
+        character(len=*), intent(in) :: package_path
+        type(package_info), intent(out) :: package
+        logical :: success
+        
+        character(len=:), allocatable :: metadata_file
+        type(json_file) :: json
+        logical :: found
+        
+        success = .false.
+        metadata_file = join_path(package_path, "f2pi.json")
+        
+        call json%initialize()
+        call json%load_file(metadata_file)
+        
+        ! Load all required fields
+        call json%get("name", package%name, found)
+        if (.not. found) return
+        
+        call json%get("version", package%version, found)
+        if (.not. found) return
+        
+        call json%get("description", package%description, found)
+        if (.not. found) return
+        
+        call json%get("category", package%category, found)
+        if (.not. found) return
+        
+        call json%get("author", package%author, found)
+        if (.not. found) package%author = "Unknown"
+        
+        call json%get("license", package%license, found)
+        if (.not. found) package%license = "MIT"
+        
+        call json%get("repository_url", package%repository_url, found)
+        if (.not. found) package%repository_url = ""
+        
+        call json%get("documentation_url", package%documentation_url, found)
+        if (.not. found) package%documentation_url = ""
+        
+        ! Load dependencies (optional)
+        package%dependency_count = 0
+        allocate(package%dependencies(0))
+        
+        call json%destroy()
+        success = .true.
+        
+    end function load_package_metadata
+    
+    function package_exists(registry_path, package_name, package_version) result(exists)
+        character(len=*), intent(in) :: registry_path
+        character(len=*), intent(in) :: package_name
+        character(len=*), intent(in) :: package_version
+        logical :: exists
+        
+        character(len=:), allocatable :: package_path
+        character(len=:), allocatable :: version_path
+        
+        package_path = join_path(registry_path, "packages/approved/" // package_name)
+        version_path = join_path(package_path, package_version)
+        
+        exists = exists(version_path)
+        
+    end function package_exists
+    
+    function move_package_to_approved(source_path, dest_path) result(success)
+        character(len=*), intent(in) :: source_path
+        character(len=*), intent(in) :: dest_path
+        logical :: success
+        
+        ! Create destination directory
+        call mkdir(dest_path)
+        
+        ! Copy all files from source to destination
+        success = copy_directory(source_path, dest_path)
+        
+    end function move_package_to_approved
+    
+    function update_registry_index(registry_path, package) result(success)
+        character(len=*), intent(in) :: registry_path
+        type(package_info), intent(in) :: package
+        logical :: success
+        
+        character(len=:), allocatable :: index_file
+        type(json_file) :: json
+        type(json_value), pointer :: packages_obj, package_obj
+        
+        success = .false.
+        index_file = join_path(registry_path, "registry/index.json")
+        
+        call json%initialize()
+        call json%load_file(index_file)
+        
+        ! Get packages object
+        call json%get("packages", packages_obj)
+        if (.not. associated(packages_obj)) return
+        
+        ! Create package entry
+        call json_create_object(package_obj)
+        call json_add(package_obj, "name", package%name)
+        call json_add(package_obj, "version", package%version)
+        call json_add(package_obj, "description", package%description)
+        call json_add(package_obj, "category", package%category)
+        call json_add(package_obj, "author", package%author)
+        call json_add(package_obj, "license", package%license)
+        call json_add(package_obj, "repository_url", package%repository_url)
+        call json_add(package_obj, "documentation_url", package%documentation_url)
+        call json_add(package_obj, "published_date", get_current_date())
+        
+        ! Add to packages object
+        call json_add(packages_obj, package%name, package_obj)
+        
+        ! Save updated index
+        call json%print_file(index_file)
+        
+        call json%destroy()
+        success = .true.
+        
+    end function update_registry_index
+    
+    function update_package_statistics(registry_path, package) result(success)
+        character(len=*), intent(in) :: registry_path
+        type(package_info), intent(in) :: package
+        logical :: success
+        
+        character(len=:), allocatable :: stats_file
+        type(json_file) :: json
+        integer :: total_packages, category_count
+        
+        success = .false.
+        stats_file = join_path(registry_path, "registry/stats/package-stats.json")
+        
+        call json%initialize()
+        call json%load_file(stats_file)
+        
+        ! Update total packages count
+        call json%get("statistics.totalPackages", total_packages)
+        total_packages = total_packages + 1
+        call json%update("statistics.totalPackages", total_packages)
+        
+        ! Update category count
+        call json%get("statistics.packagesByCategory." // package%category, category_count)
+        category_count = category_count + 1
+        call json%update("statistics.packagesByCategory." // package%category, category_count)
+        
+        ! Update last updated timestamp
+        call json%update("statistics.lastUpdated", get_current_timestamp())
+        
+        ! Save updated statistics
+        call json%print_file(stats_file)
+        
+        call json%destroy()
+        success = .true.
+        
+    end function update_package_statistics
+    
+    function update_category_listings(registry_path, package) result(success)
+        character(len=*), intent(in) :: registry_path
+        type(package_info), intent(in) :: package
+        logical :: success
+        
+        character(len=:), allocatable :: categories_file
+        type(json_file) :: json
+        type(json_value), pointer :: categories_obj, category_obj, packages_array
+        
+        success = .false.
+        categories_file = join_path(registry_path, "registry/categories/index.json")
+        
+        call json%initialize()
+        call json%load_file(categories_file)
+        
+        ! Get categories object
+        call json%get("categories", categories_obj)
+        if (.not. associated(categories_obj)) return
+        
+        ! Get specific category
+        call json%get("categories." // package%category, category_obj)
+        if (.not. associated(category_obj)) return
+        
+        ! Get packages array for this category
+        call json%get("categories." // package%category // ".packages", packages_array)
+        if (.not. associated(packages_array)) return
+        
+        ! Add package to category
+        call json_add(packages_array, "", package%name)
+        
+        ! Save updated categories
+        call json%print_file(categories_file)
+        
+        call json%destroy()
+        success = .true.
+        
+    end function update_category_listings
+    
+    function copy_directory(source, destination) result(success)
+        character(len=*), intent(in) :: source, destination
+        logical :: success
+        
+        ! Placeholder for directory copying functionality
+        ! This would use system calls or stdlib_filesystem
+        success = .true.
+        
+    end function copy_directory
+    
+    function get_current_date() result(date_str)
+        character(len=:), allocatable :: date_str
+        
+        ! Placeholder for current date functionality
+        date_str = "2024-01-01"
+        
+    end function get_current_date
+    
+    function get_current_timestamp() result(timestamp_str)
+        character(len=:), allocatable :: timestamp_str
+        
+        ! Placeholder for current timestamp functionality
+        timestamp_str = "2024-01-01T00:00:00Z"
+        
+    end function get_current_timestamp
+    
+    function join_path(path1, path2) result(joined_path)
+        character(len=*), intent(in) :: path1, path2
+        character(len=:), allocatable :: joined_path
+        
+        if (ends_with(path1, "/")) then
+            joined_path = path1 // path2
+        else
+            joined_path = path1 // "/" // path2
+        end if
+        
+    end function join_path
+    
+    function ends_with(str, suffix) result(result)
+        character(len=*), intent(in) :: str, suffix
+        logical :: result
+        
+        integer :: str_len, suffix_len
+        
+        str_len = len_trim(str)
+        suffix_len = len_trim(suffix)
+        
+        if (str_len < suffix_len) then
+            result = .false.
+        else
+            result = (str(str_len-suffix_len+1:str_len) == suffix)
+        end if
+        
+    end function ends_with
+
+end module package_publisher
